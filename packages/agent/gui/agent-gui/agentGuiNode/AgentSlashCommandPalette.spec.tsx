@@ -151,13 +151,59 @@ describe("AgentSlashCommandPalette", () => {
       .querySelector("svg");
     expect(icon).toBeTruthy();
     expect(icon?.parentElement).toHaveClass(
+      "flex",
+      "w-4",
       "shrink-0",
+      "items-center",
+      "justify-center",
       "text-[var(--text-secondary)]"
     );
     expect(icon?.parentElement).not.toHaveClass(
       "bg-[var(--transparency-hover)]",
       "rounded-[7px]"
     );
+  });
+
+  it("uses distinct icons for plan and review commands", () => {
+    render(
+      <AgentSlashCommandPalette
+        label="Slash commands"
+        commandsGroupLabel="Commands"
+        capabilitiesGroupLabel="Capabilities"
+        skillsGroupLabel="Skills"
+        pluginsGroupLabel="Plugins"
+        connectorsGroupLabel="Connectors"
+        mcpGroupLabel="MCP"
+        highlightedIndex={0}
+        entries={[
+          {
+            type: "command",
+            key: "command:plan",
+            label: "plan",
+            command: { name: "plan" }
+          },
+          {
+            type: "command",
+            key: "command:review",
+            label: "review",
+            command: { name: "review" }
+          }
+        ]}
+        onHighlightChange={vi.fn()}
+        onSelect={vi.fn()}
+        onSelectCapability={vi.fn()}
+        onSelectSkill={vi.fn()}
+      />
+    );
+
+    const planIcon = screen
+      .getByRole("option", { name: /plan/i })
+      .querySelector("svg");
+    const reviewIcon = screen
+      .getByRole("option", { name: /review/i })
+      .querySelector("svg");
+
+    expect(planIcon?.innerHTML).not.toBe(reviewIcon?.innerHTML);
   });
 
   it("renders inline settings on capability entries and dispatches settings selection", () => {

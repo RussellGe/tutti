@@ -4,6 +4,7 @@ import {
   Info,
   ListChecks,
   Monitor,
+  Search,
   Target,
   ZapIcon
 } from "lucide-react";
@@ -62,7 +63,8 @@ const paletteStyles = {
     "nodrag agent-gui-node__mention-palette flex h-full min-h-0 flex-col gap-1 overflow-y-auto px-1 pb-1 pt-2 [-webkit-app-region:no-drag]",
   option:
     "nodrag relative flex min-h-9 w-full min-w-0 cursor-pointer select-none items-center gap-1.5 overflow-hidden rounded-[6px] border-0 bg-transparent px-2.5 py-2 text-left text-[13px] text-[var(--text-primary)] outline-hidden transition-colors duration-200 [-webkit-app-region:no-drag] focus-visible:outline-none active:bg-[var(--transparency-active)] data-[highlighted]:bg-[var(--transparency-block)] data-[highlighted]:text-[var(--text-primary)] [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-  icon: "shrink-0 text-[var(--text-secondary)] [&_svg]:size-3.5",
+  icon:
+    "flex w-4 shrink-0 items-center justify-center self-center text-[var(--text-secondary)] [&_svg]:size-3",
   copy: "flex min-w-0 flex-1 items-baseline gap-1 overflow-hidden leading-[16px]",
   name: "min-w-0 max-w-[48%] shrink-0 truncate text-[11px] font-semibold text-[var(--text-primary)]",
   descriptionText:
@@ -282,8 +284,9 @@ function slashPaletteEntryIcon(entry: AgentSlashPaletteEntry): ReactNode {
     case "goal":
       return <Target />;
     case "plan":
-    case "review":
       return <ListChecks />;
+    case "review":
+      return <Search />;
     case "status":
       return <Info />;
     default:

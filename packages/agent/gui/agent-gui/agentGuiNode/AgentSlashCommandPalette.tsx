@@ -1,4 +1,12 @@
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef, type ReactNode } from "react";
+import {
+  Globe,
+  Info,
+  ListChecks,
+  Monitor,
+  Target,
+  ZapIcon
+} from "lucide-react";
 import type { AgentSessionCommand } from "../../shared/agentSessionTypes";
 import { cn } from "../../app/renderer/lib/utils";
 import type { AgentGUIProviderSkillOption } from "./model/agentGuiNodeTypes";
@@ -54,6 +62,7 @@ const paletteStyles = {
     "nodrag agent-gui-node__mention-palette flex h-full min-h-0 flex-col gap-1 overflow-y-auto px-1 pb-1 pt-2 [-webkit-app-region:no-drag]",
   option:
     "nodrag relative flex min-h-9 w-full min-w-0 cursor-pointer select-none items-center gap-1.5 overflow-hidden rounded-[6px] border-0 bg-transparent px-2.5 py-2 text-left text-[13px] text-[var(--text-primary)] outline-hidden transition-colors duration-200 [-webkit-app-region:no-drag] focus-visible:outline-none active:bg-[var(--transparency-active)] data-[highlighted]:bg-[var(--transparency-block)] data-[highlighted]:text-[var(--text-primary)] [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  icon: "shrink-0 text-[var(--text-secondary)] [&_svg]:size-3.5",
   copy: "flex min-w-0 flex-1 items-baseline gap-1 overflow-hidden leading-[16px]",
   name: "min-w-0 max-w-[48%] shrink-0 truncate text-[11px] font-semibold text-[var(--text-primary)]",
   descriptionText:
@@ -110,6 +119,7 @@ export function AgentSlashCommandPalette({
       {entries.map((entry, index) => {
         const isHighlighted = index === highlightedIndex;
         const groupType = entryGroupType(entry);
+        const entryIcon = slashPaletteEntryIcon(entry);
         const groupHeader =
           showGroupHeaders && firstEntryIndexByType.get(groupType) === index ? (
             <div
@@ -161,6 +171,11 @@ export function AgentSlashCommandPalette({
                 onSelectSkill(entry.skill);
               }}
             >
+              {entryIcon ? (
+                <span aria-hidden="true" className={paletteStyles.icon}>
+                  {entryIcon}
+                </span>
+              ) : null}
               <span className={paletteStyles.copy}>
                 <span className={paletteStyles.name}>{entry.label}</span>
                 {entry.description ? (
@@ -247,5 +262,31 @@ function labelForEntryGroupType(
       return labels.mcpGroupLabel;
     case "skill":
       return labels.skillsGroupLabel;
+  }
+}
+
+function slashPaletteEntryIcon(entry: AgentSlashPaletteEntry): ReactNode {
+  if (entry.type === "capability") {
+    return entry.capability.capability === "computerUse" ? (
+      <Monitor />
+    ) : (
+      <Globe />
+    );
+  }
+  if (entry.type !== "command") {
+    return null;
+  }
+  switch (entry.command.name.trim().toLowerCase()) {
+    case "fast":
+      return <ZapIcon />;
+    case "goal":
+      return <Target />;
+    case "plan":
+    case "review":
+      return <ListChecks />;
+    case "status":
+      return <Info />;
+    default:
+      return null;
   }
 }

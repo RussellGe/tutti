@@ -114,6 +114,50 @@ describe("AgentSlashCommandPalette", () => {
       name: "browser",
       aliases: ["浏览器"]
     });
+    expect(
+      screen.getByRole("option", { name: /Browser/i }).querySelector("svg")
+    ).toBeTruthy();
+  });
+
+  it("renders icons for built-in slash commands", () => {
+    render(
+      <AgentSlashCommandPalette
+        label="Slash commands"
+        commandsGroupLabel="Commands"
+        capabilitiesGroupLabel="Capabilities"
+        skillsGroupLabel="Skills"
+        pluginsGroupLabel="Plugins"
+        connectorsGroupLabel="Connectors"
+        mcpGroupLabel="MCP"
+        highlightedIndex={0}
+        entries={[
+          {
+            type: "command",
+            key: "command:status",
+            label: "status",
+            description: "Show session status.",
+            command: { name: "status" }
+          }
+        ]}
+        onHighlightChange={vi.fn()}
+        onSelect={vi.fn()}
+        onSelectCapability={vi.fn()}
+        onSelectSkill={vi.fn()}
+      />
+    );
+
+    const icon = screen
+      .getByRole("option", { name: /status/i })
+      .querySelector("svg");
+    expect(icon).toBeTruthy();
+    expect(icon?.parentElement).toHaveClass(
+      "shrink-0",
+      "text-[var(--text-secondary)]"
+    );
+    expect(icon?.parentElement).not.toHaveClass(
+      "bg-[var(--transparency-hover)]",
+      "rounded-[7px]"
+    );
   });
 
   it("renders inline settings on capability entries and dispatches settings selection", () => {

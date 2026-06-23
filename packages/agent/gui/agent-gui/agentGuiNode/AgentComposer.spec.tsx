@@ -77,12 +77,14 @@ vi.mock("../../app/renderer/components/ui/popover", () => ({
 vi.mock("./agentRichText/AgentRichTextEditor", () => ({
   AgentRichTextEditor: ({
     disabled,
+    onChange,
     onPasteImages,
     onKeyDownForPalette,
     value,
     placeholder
   }: {
     disabled?: boolean;
+    onChange?: (nextValue: string) => void;
     onPasteImages?: (images: unknown[]) => void;
     onKeyDownForPalette?: (event: KeyboardEvent) => boolean;
     value: string;
@@ -93,7 +95,7 @@ vi.mock("./agentRichText/AgentRichTextEditor", () => ({
         value={value}
         placeholder={placeholder}
         disabled={disabled}
-        readOnly
+        onChange={(event) => onChange?.(event.currentTarget.value)}
         onKeyDown={(event) => {
           if (onKeyDownForPalette?.(event.nativeEvent)) {
             event.preventDefault();
@@ -518,6 +520,178 @@ describe("AgentComposer", () => {
     expect(onCapabilitySettingsRequest).toHaveBeenCalledWith("browserUse");
     expect(onDraftContentChange).not.toHaveBeenCalled();
     expect(onSettingsChange).not.toHaveBeenCalled();
+  });
+
+  it("shows localized descriptions for built-in slash commands", async () => {
+    render(
+      <AgentComposer
+        workspaceId="workspace-1"
+        currentUserId="user-1"
+        provider="codex"
+        draftContent={createDraft("/")}
+        availableCommands={[] satisfies readonly AgentHostAgentSessionCommand[]}
+        disabled={false}
+        submitDisabled={false}
+        placeholder="placeholder"
+        composerSettings={createComposerSettings({
+          supportsPlanMode: true
+        })}
+        queuedPrompts={[]}
+        drainingQueuedPromptId={null}
+        canQueueWhileBusy={false}
+        showStopButton={false}
+        activePrompt={null}
+        isInterrupting={false}
+        isSendingTurn={false}
+        isSubmittingPrompt={false}
+        labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
+        onDraftContentChange={vi.fn()}
+        onSettingsChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onSendQueuedPromptNext={vi.fn()}
+        onRemoveQueuedPrompt={vi.fn()}
+        onEditQueuedPrompt={vi.fn()}
+        onInterruptCurrentTurn={vi.fn()}
+        onSubmitInteractivePrompt={vi.fn()}
+      />
+    );
+
+    const palette = await screen.findByTestId("mock-slash-palette");
+    expect(palette).toHaveTextContent("查看会话状态和上下文用量。");
+    expect(palette).toHaveTextContent("切换快速响应模式。");
+    expect(palette).toHaveTextContent("设置、查看或清除当前目标。");
+    expect(palette).toHaveTextContent("发起代码审查。");
+    expect(palette).toHaveTextContent("切换计划模式。");
+  });
+
+  it("activates goal mode as a footer badge from the slash palette", async () => {
+    let draftContent = createDraft("/");
+    const onDraftContentChange = vi.fn((nextDraft: AgentComposerDraft) => {
+      draftContent = nextDraft;
+      rerender(renderComposer());
+    });
+    const onSubmit = vi.fn();
+    const renderComposer = () => (
+      <AgentComposer
+        workspaceId="workspace-1"
+        currentUserId="user-1"
+        provider="codex"
+        draftContent={draftContent}
+        availableCommands={[] satisfies readonly AgentHostAgentSessionCommand[]}
+        disabled={false}
+        submitDisabled={false}
+        placeholder="placeholder"
+        composerSettings={createComposerSettings({
+          supportsPlanMode: true
+        })}
+        queuedPrompts={[]}
+        drainingQueuedPromptId={null}
+        canQueueWhileBusy={false}
+        showStopButton={false}
+        activePrompt={null}
+        isInterrupting={false}
+        isSendingTurn={false}
+        isSubmittingPrompt={false}
+        labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
+        onDraftContentChange={onDraftContentChange}
+        onSettingsChange={vi.fn()}
+        onSubmit={onSubmit}
+        onSendQueuedPromptNext={vi.fn()}
+        onRemoveQueuedPrompt={vi.fn()}
+        onEditQueuedPrompt={vi.fn()}
+        onInterruptCurrentTurn={vi.fn()}
+        onSubmitInteractivePrompt={vi.fn()}
+      />
+    );
+    const { rerender } = render(renderComposer());
+
+    fireEvent.click(screen.getByRole("button", { name: "goal" }));
+
+    expect(onDraftContentChange).toHaveBeenCalledWith(createDraft("/goal"));
+    expect(screen.getByRole("button", { name: "目标" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveValue("");
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "ship the review picker" }
+    });
+
+    expect(onDraftContentChange).toHaveBeenLastCalledWith(
+      createDraft("/goal ship the review picker")
+    );
+    expect(screen.getByRole("textbox")).toHaveValue("ship the review picker");
+
+    fireEvent.submit(screen.getByRole("textbox").closest("form")!);
+
+    expect(onSubmit).toHaveBeenCalledWith([
+      { type: "text", text: "/goal ship the review picker" }
+    ]);
+  });
+
+  it("turns a typed /goal command into a footer badge and keeps plain text when cleared", () => {
+    let draftContent = createDraft("");
+    const onDraftContentChange = vi.fn((nextDraft: AgentComposerDraft) => {
+      draftContent = nextDraft;
+      rerender(renderComposer());
+    });
+    const renderComposer = () => (
+      <AgentComposer
+        workspaceId="workspace-1"
+        currentUserId="user-1"
+        provider="codex"
+        draftContent={draftContent}
+        availableCommands={[] satisfies readonly AgentHostAgentSessionCommand[]}
+        disabled={false}
+        submitDisabled={false}
+        placeholder="placeholder"
+        composerSettings={createComposerSettings()}
+        queuedPrompts={[]}
+        drainingQueuedPromptId={null}
+        canQueueWhileBusy={false}
+        showStopButton={false}
+        activePrompt={null}
+        isInterrupting={false}
+        isSendingTurn={false}
+        isSubmittingPrompt={false}
+        labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
+        onDraftContentChange={onDraftContentChange}
+        onSettingsChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onSendQueuedPromptNext={vi.fn()}
+        onRemoveQueuedPrompt={vi.fn()}
+        onEditQueuedPrompt={vi.fn()}
+        onInterruptCurrentTurn={vi.fn()}
+        onSubmitInteractivePrompt={vi.fn()}
+      />
+    );
+    const { rerender } = render(renderComposer());
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "/goal" }
+    });
+
+    expect(onDraftContentChange).toHaveBeenCalledWith(createDraft("/goal"));
+    expect(screen.getByRole("button", { name: "目标" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveValue("");
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "stabilize renderer sync" }
+    });
+    expect(onDraftContentChange).toHaveBeenLastCalledWith(
+      createDraft("/goal stabilize renderer sync")
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "目标" }));
+
+    expect(onDraftContentChange).toHaveBeenLastCalledWith(
+      createDraft("stabilize renderer sync")
+    );
+    expect(screen.getByRole("textbox")).toHaveValue("stabilize renderer sync");
+    expect(
+      screen.queryByRole("button", { name: "目标" })
+    ).not.toBeInTheDocument();
   });
 
   it("opens computer-use setup from Enter when the capability is not installed", async () => {
@@ -2841,6 +3015,7 @@ function createLabels(): Parameters<typeof AgentComposer>[0]["labels"] {
     planModeOnLabel: "开启",
     planModeOffLabel: "关闭",
     planUnavailable: "计划不可用",
+    goalLabel: "目标",
     browserUseCapabilityLabel: "浏览器",
     browserUseCapabilityDescription: "让 Agent 使用浏览器。",
     browserUseCapabilityDescriptionAutoConnect:
@@ -2874,6 +3049,15 @@ function createLabels(): Parameters<typeof AgentComposer>[0]["labels"] {
     slashPalettePluginsGroup: "插件",
     slashPaletteConnectorsGroup: "连接器",
     slashPaletteMcpGroup: "MCP",
+    slashCommandCompactDescription: "压缩当前对话上下文。",
+    slashCommandContextDescription: "查看当前上下文快照。",
+    slashCommandFastDescription: "切换快速响应模式。",
+    slashCommandGoalDescription: "设置、查看或清除当前目标。",
+    slashCommandInitDescription: "初始化仓库说明文件。",
+    slashCommandPlanDescription: "切换计划模式。",
+    slashCommandReviewDescription: "发起代码审查。",
+    slashCommandStatusDescription: "查看会话状态和上下文用量。",
+    slashCommandUsageDescription: "查看上下文和额度用量。",
     slashStatusTitle: "Status",
     slashStatusSession: "Session",
     slashStatusBaseUrl: "Base URL",

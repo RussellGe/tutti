@@ -21,6 +21,7 @@ import {
 } from "./desktopTheme";
 import { registerIpcHandlers } from "./ipc/register";
 import { flushDesktopLogger, setupDesktopLogger } from "./logging";
+import { ensureSingleInstance } from "./singleInstance";
 import { getSystemDesktopLocale } from "./desktopLocale";
 import { openDesktopWorkspaceAppFolder } from "./host/workspaceAppFolderAccess";
 import { openPerfMonitorDevToolsWindow } from "./windows/perfMonitorDevToolsWindow.ts";
@@ -39,6 +40,20 @@ function envFlagEnabled(value: string | undefined): boolean {
   return /^(1|true|yes|on)$/iu.test(value?.trim() ?? "");
 }
 
+function focusPrimaryDesktopWindow(): void {
+  const target = BrowserWindow.getAllWindows().find(
+    (window) => !window.isDestroyed()
+  );
+  if (!target) {
+    return;
+  }
+  if (target.isMinimized()) {
+    target.restore();
+  }
+  target.show();
+  target.focus();
+}
+
 export async function bootstrapDesktopApp(): Promise<void> {
   registerTuttiAssetProtocolScheme();
   registerWorkspaceFileIconProtocolScheme();
@@ -47,6 +62,26 @@ export async function bootstrapDesktopApp(): Promise<void> {
     isPackaged: app.isPackaged
   });
   const logger = await setupDesktopLogger();
+
+  // A single live desktop instance per environment. The managed tuttid daemon is
+  // a global singleton (one pid/listener file per env root); a second instance
+  // would otherwise reap the first instance's live daemon as a "stale" orphan,
+  // breaking the first instance until it is restarted manually.
+  const isPrimaryInstance = ensureSingleInstance({
+    requestSingleInstanceLock: () => app.requestSingleInstanceLock(),
+    quit: () => app.quit(),
+    onSecondInstance: (handler) => {
+      app.on("second-instance", handler);
+    },
+    focusPrimaryWindow: focusPrimaryDesktopWindow
+  });
+  if (!isPrimaryInstance) {
+    logger.info(
+      "secondary tutti instance detected; focusing existing window and quitting"
+    );
+    return;
+  }
+
   const currentDir = dirname(fileURLToPath(import.meta.url));
   const preloadPath = join(currentDir, "../preload/index.cjs");
   const browserNodeGuestPreloadPath = join(

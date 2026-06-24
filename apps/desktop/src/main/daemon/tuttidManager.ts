@@ -19,6 +19,10 @@ import {
   type DesktopDaemonEndpoint
 } from "../transport/paths.ts";
 import { resolveUserShellEnv } from "./userShellEnv.ts";
+import {
+  createDaemonRestartController,
+  type DaemonRestartController
+} from "./daemonRestartController.ts";
 
 const healthPollIntervalMs = 250;
 const healthTimeoutMs = 90_000;
@@ -60,10 +64,22 @@ class ManagedTuttid implements TuttidManager {
   private stopRequested = false;
   private readonly endpoint: DesktopDaemonEndpoint;
   private readonly tuttidClient: TuttidClient;
+  private readonly restartController: DaemonRestartController;
 
   constructor(endpoint: DesktopDaemonEndpoint, tuttidClient: TuttidClient) {
     this.endpoint = endpoint;
     this.tuttidClient = tuttidClient;
+    this.restartController = createDaemonRestartController({
+      restart: () => this.start(),
+      isStopRequested: () => this.stopRequested,
+      delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      now: () => Date.now(),
+      logger: {
+        info: (message, fields) => getDesktopLogger().info(message, fields),
+        warn: (message, fields) => getDesktopLogger().warn(message, fields),
+        error: (message, fields) => getDesktopLogger().error(message, fields)
+      }
+    });
   }
 
   getHealth(): Promise<HealthStatusResponse> {
@@ -135,6 +151,7 @@ class ManagedTuttid implements TuttidManager {
           signal,
           error_code: desktopErrorCodes.managedProcessExited
         });
+        void this.restartController.notifyExited();
       }
     });
 
@@ -145,13 +162,17 @@ class ManagedTuttid implements TuttidManager {
       );
       await waitUntilHealthy(this.tuttidClient, () => this.isProcessAlive());
     } catch (error) {
-      await this.stop();
+      await this.terminateProcess();
       throw error;
     }
   }
 
   async stop(): Promise<void> {
     this.stopRequested = true;
+    await this.terminateProcess();
+  }
+
+  private async terminateProcess(): Promise<void> {
     this.endpoint.boundAddr = null;
 
     const child = this.process;

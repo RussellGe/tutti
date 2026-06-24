@@ -79,6 +79,57 @@ func TestServiceResolveProviderCommandUsesBundledClaudeACP(t *testing.T) {
 	}
 }
 
+func TestServiceResolveProviderCommandUsesElectronNodeForBundledClaudeACP(t *testing.T) {
+	home := t.TempDir()
+	entry := filepath.Join(t.TempDir(), "claude-acp", "dist", "index.js")
+	if err := os.MkdirAll(filepath.Dir(entry), 0o755); err != nil {
+		t.Fatalf("mkdir entry dir: %v", err)
+	}
+	if err := os.WriteFile(entry, []byte("// vendored bridge\n"), 0o644); err != nil {
+		t.Fatalf("write entry: %v", err)
+	}
+	// Stand-in for the app's Electron binary.
+	electron := filepath.Join(t.TempDir(), "Tutti")
+	if err := os.WriteFile(electron, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write electron: %v", err)
+	}
+
+	service := probeTestService(home)
+	service.ExternalAgentRegistry = brokenExternalRegistry(t)
+	// Managed runtime is unavailable on purpose: the app's Electron-as-node must
+	// make Claude Code work offline regardless.
+	service.ManagedRuntime = unavailableManagedRuntime{}
+	service.Environ = func() []string {
+		return []string{
+			"PATH=/usr/bin:/bin",
+			claudeACPEntryPathEnv + "=" + entry,
+			claudeACPNodeEnv + "=" + electron,
+		}
+	}
+	service.FileExists = func(path string) bool { return path == entry || path == electron }
+	service.LookPath = func(name string) (string, error) {
+		if name == "claude" {
+			return "/usr/local/bin/claude", nil
+		}
+		return "", errors.New("not found")
+	}
+
+	result, err := service.ResolveProviderCommand(context.Background(), "claude-code")
+	if err != nil {
+		t.Fatalf("ResolveProviderCommand() error = %v", err)
+	}
+	want := []string{electron, entry}
+	if !slices.Equal(result.Command, want) {
+		t.Fatalf("Command = %#v, want electron-as-node %#v", result.Command, want)
+	}
+	if !slices.Contains(result.Env, "ELECTRON_RUN_AS_NODE=1") {
+		t.Fatalf("Env = %#v, want ELECTRON_RUN_AS_NODE=1", result.Env)
+	}
+	if !slices.Contains(result.Env, "CLAUDE_CODE_EXECUTABLE=/usr/local/bin/claude") {
+		t.Fatalf("Env = %#v, want CLAUDE_CODE_EXECUTABLE", result.Env)
+	}
+}
+
 func TestServiceRunActionSkipsInstallWhenClaudeACPBundled(t *testing.T) {
 	home := t.TempDir()
 	runtimeRoot := fakeManagedRuntimeRoot(t)

@@ -23,6 +23,14 @@ const (
 	// dist/index.js) so the daemon can run Claude Code offline without a runtime
 	// npm install. Mirrors TUTTI_BROWSER_MCP_ENTRY_PATH.
 	claudeACPEntryPathEnv = "TUTTI_CLAUDE_ACP_ENTRY_PATH"
+
+	// claudeACPNodeEnv is set by the packaged desktop app to the app's own
+	// Electron executable. The daemon runs the vendored bridge with it via
+	// ELECTRON_RUN_AS_NODE=1, so the bridge has a Node runtime that ships inside
+	// the app and works fully offline — unlike the managed Node runtime, which is
+	// downloaded on demand from the Tutti CDN and is therefore unavailable on a
+	// cold offline start.
+	claudeACPNodeEnv = "TUTTI_CLAUDE_ACP_NODE"
 )
 
 // bundledClaudeACPEntryPath returns the vendored claude-agent-acp run entry when
@@ -65,6 +73,21 @@ func (s Service) resolveBundledClaudeACPSpec(
 		Name:    claudeACPPackageName,
 		Version: claudeACPPinnedVersion,
 	}
+
+	// Preferred: run the bridge with the app's own Electron binary as Node
+	// (ELECTRON_RUN_AS_NODE). It ships inside the app, so Claude Code works fully
+	// offline with no managed-runtime download.
+	if node := strings.TrimSpace(s.getenv(claudeACPNodeEnv)); node != "" && s.fileExists(node) {
+		env := append(s.commandResolver().Env(nil), "ELECTRON_RUN_AS_NODE=1")
+		spec.AdapterCommand = []string{node, entry}
+		spec.AdapterEnv = s.appendClaudeExecutable(env, spec)
+		spec.AdapterUnavailableReasonCode = ""
+		return spec
+	}
+
+	// Fallback (older desktop builds without the Electron-node env): the managed
+	// Node runtime. This needs a network download on a cold start, so it can be
+	// unavailable offline.
 	appRuntime, ok := s.resolveManagedRuntimeForProvider(ctx, requireManagedRuntime)
 	if !ok {
 		spec.AdapterCommand = nil
@@ -72,18 +95,21 @@ func (s Service) resolveBundledClaudeACPSpec(
 		spec.AdapterUnavailableReasonCode = ReasonManagedRuntimeUnavailable
 		return spec
 	}
-	env := cloneStrings(appRuntime.EnvOverrides)
-	// The vendored bridge has the SDK's bundled Claude Code CLI pruned (see
-	// vendor-claude-acp.mjs), so point it at the system-managed claude binary.
-	// The bridge's claudeCliPath() honors CLAUDE_CODE_EXECUTABLE before falling
-	// back to the (now absent) bundled native package.
+	spec.AdapterCommand = []string{appRuntime.Node, entry}
+	spec.AdapterEnv = s.appendClaudeExecutable(cloneStrings(appRuntime.EnvOverrides), spec)
+	spec.AdapterUnavailableReasonCode = ""
+	return spec
+}
+
+// appendClaudeExecutable points the bridge at the system-managed claude binary.
+// The vendored bridge has the SDK's bundled Claude Code CLI pruned (see
+// vendor-claude-acp.mjs), and the bridge's claudeCliPath() honors
+// CLAUDE_CODE_EXECUTABLE before falling back to the (now absent) bundled package.
+func (s Service) appendClaudeExecutable(env []string, spec ProviderSpec) []string {
 	if claudePath := resolveBinaryWithResolver(s.commandResolver(), spec.BinaryNames, nil); strings.TrimSpace(claudePath) != "" {
 		env = append(env, "CLAUDE_CODE_EXECUTABLE="+claudePath)
 	}
-	spec.AdapterCommand = []string{appRuntime.Node, entry}
-	spec.AdapterEnv = env
-	spec.AdapterUnavailableReasonCode = ""
-	return spec
+	return env
 }
 
 // getenv reads a single environment variable, honoring an injected Environ for

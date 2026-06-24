@@ -202,7 +202,8 @@ test("resolveClaudeAcpDaemonEnv points the daemon at a vendored bridge when pres
 
     const got = resolveClaudeAcpDaemonEnv({ isPackaged: true, resourcesPath });
     assert.deepEqual(got, {
-      TUTTI_CLAUDE_ACP_ENTRY_PATH: entry
+      TUTTI_CLAUDE_ACP_ENTRY_PATH: entry,
+      TUTTI_CLAUDE_ACP_NODE: process.execPath
     });
   } finally {
     restoreEnv(previousEnv);

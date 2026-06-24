@@ -295,7 +295,11 @@ export function resolveClaudeAcpDaemonEnv(
     return {};
   }
   return {
-    TUTTI_CLAUDE_ACP_ENTRY_PATH: entry
+    TUTTI_CLAUDE_ACP_ENTRY_PATH: entry,
+    // The app's own Electron binary doubles as a Node runtime via
+    // ELECTRON_RUN_AS_NODE, so the daemon can run the bundled bridge fully
+    // offline without downloading the managed Node runtime.
+    TUTTI_CLAUDE_ACP_NODE: process.execPath
   };
 }
 
